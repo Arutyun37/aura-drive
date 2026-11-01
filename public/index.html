@@ -1,0 +1,209 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>AURA DRIVE</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden;background:#111;color:white;font-family:Arial}
+#game{position:fixed;inset:0}
+#menu{position:fixed;top:15px;left:15px;z-index:5;background:#101820dd;padding:15px;border-radius:14px}
+#menu h2{margin:0 0 8px;color:#48aaff}
+#menu select{background:#222;color:white;padding:10px;border:1px solid #48aaff;border-radius:8px}
+#speed{position:fixed;right:20px;top:20px;font-size:30px;font-weight:bold;text-shadow:0 2px 5px black}
+#controls{position:fixed;bottom:25px;left:0;right:0;display:flex;justify-content:space-between;padding:0 25px;z-index:5}
+.group{display:flex;gap:12px;align-items:end}
+.btn{width:65px;height:65px;border:2px solid #48aaff;border-radius:50%;background:#101820cc;color:white;font-size:20px;touch-action:none}
+.btn:active{background:#1879c7}
+#gas{width:85px;height:85px;background:#146d46cc}
+#brake{background:#8c2222cc}
+#help{position:fixed;bottom:120px;left:20px;color:#fff9;font-size:12px}
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="menu">
+<h2>AURA DRIVE</h2>
+<select id="car">
+<option value="0">Mercedes E320</option>
+<option value="1">Mercedes CLS</option>
+<option value="2">Mercedes G-Class</option>
+</select>
+</div>
+
+<div id="speed">0 KM/H</div>
+<div id="help">WASD / стрелки — управление</div>
+
+<div id="controls">
+<div class="group">
+<button class="btn" id="left">◀</button>
+<button class="btn" id="right">▶</button>
+</div>
+<div class="group">
+<button class="btn" id="brake">▼</button>
+<button class="btn" id="gas">▲</button>
+</div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87b5d5);
+scene.fog=new THREE.Fog(0x87b5d5,100,450);
+
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,1000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+document.getElementById('game').appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x555566,2));
+const sun=new THREE.DirectionalLight(0xffffff,2);
+sun.position.set(80,120,60);
+sun.castShadow=true;
+scene.add(sun);
+
+const ground=new THREE.Mesh(
+new THREE.PlaneGeometry(500,500),
+new THREE.MeshStandardMaterial({color:0x555b58})
+);
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
+scene.add(ground);
+
+const roadMat=new THREE.MeshStandardMaterial({color:0x25282c});
+function road(x,z,w,d){
+const m=new THREE.Mesh(new THREE.BoxGeometry(w,.12,d),roadMat);
+m.position.set(x,.06,z);
+scene.add(m);
+}
+road(0,.12,500,18);
+road(0,0,18,500);
+
+const white=new THREE.MeshStandardMaterial({color:0xffffff});
+for(let i=-230;i<240;i+=12){
+const line=new THREE.Mesh(new THREE.BoxGeometry(.3,.13,5),white);
+line.position.set(i,.14,0);
+scene.add(line);
+const line2=new THREE.Mesh(new THREE.BoxGeometry(5,.13,.3),white);
+line2.position.set(0,.14,i);
+scene.add(line2);
+}
+
+const buildings=[];
+for(let x=-220;x<=220;x+=35){
+for(let z=-220;z<=220;z+=35){
+if(Math.abs(x)<24||Math.abs(z)<24)continue;
+const h=12+Math.random()*38;
+const b=new THREE.Mesh(
+new THREE.BoxGeometry(18,h,18),
+new THREE.MeshStandardMaterial({
+color:new THREE.Color().setHSL(.55+Math.random()*.12,.12,.22+Math.random()*.25)
+})
+);
+b.position.set(x,h/2,z);
+b.castShadow=true;
+b.receiveShadow=true;
+scene.add(b);
+buildings.push(b);
+}
+}
+
+const car=new THREE.Group();
+scene.add(car);
+
+const paint=new THREE.MeshStandardMaterial({color:0x10151c,metalness:.85,roughness:.2});
+const glass=new THREE.MeshStandardMaterial({color:0x172b3b,metalness:.5,roughness:.15});
+const rubber=new THREE.MeshStandardMaterial({color:0x111111,roughness:.9});
+const silver=new THREE.MeshStandardMaterial({color:0xaaaaaa,metalness:.8});
+function box(parent,w,h,d,mat,x,y,z){
+const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+m.position.set(x,y,z);
+m.castShadow=true;
+m.receiveShadow=true;
+parent.add(m);
+return m;
+}
+function makeCar(type){
+while(car.children.length)car.remove(car.children[0]);
+let width=type===2?2.5:2.1;
+let length=type===1?5:4.6;
+box(car,width,.65,length,paint,0,.75,0);
+box(car,width*.88,.72,length*.48,paint,0,1.4,-.1);
+box(car,width*.85,.52,length*.43,glass,0,1.55,.1);
+box(car,width*.8,.12,.12,silver,0,.65,length/2);
+box(car,width*.8,.12,.12,new THREE.MeshStandardMaterial({color:0xbb2222}),0,.65,-length/2);
+for(let x of [-width/2-.04,width/2+.04]){
+for(let z of [-length*.32,length*.32]){
+const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.22,24),rubber);
+wheel.rotation.z=Math.PI/2;
+wheel.position.set(x,.4,z);
+car.add(wheel);
+const hub=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.23,16),silver);
+hub.rotation.z=Math.PI/2;
+hub.position.set(x,.4,z);
+car.add(hub);
+}}
+}
+makeCar(0);
+
+let speed=0,steer=0,heading=0;
+const keys={};
+addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+function bind(id,key){
+const el=document.getElementById(id);
+el.addEventListener('pointerdown',e=>{e.preventDefault();keys[key]=true});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>
+el.addEventListener(ev,()=>keys[key]=false));
+}
+bind('gas','w');
+bind('brake','s');
+bind('left','a');
+bind('right','d');
+
+document.getElementById('car').onchange=e=>makeCar(+e.target.value);
+
+const clock=new THREE.Clock();
+function animate(){
+requestAnimationFrame(animate);
+const dt=Math.min(clock.getDelta(),.04);
+if(keys.w||keys.arrowup)speed=Math.min(speed+15*dt,38);
+else if(keys.s||keys.arrowdown)speed=Math.max(speed-25*dt,-10);
+else speed*=Math.pow(.985,dt*60);
+
+if(keys.a||keys.arrowleft)heading+=2*dt*Math.max(.3,Math.abs(speed)/15)*Math.sign(speed||1);
+if(keys.d||keys.arrowright)heading-=2*dt*Math.max(.3,Math.abs(speed)/15)*Math.sign(speed||1);
+
+car.rotation.y=heading;
+car.position.x+=Math.sin(heading)*speed*dt;
+car.position.z+=Math.cos(heading)*speed*dt;
+
+camera.position.set(
+car.position.x-Math.sin(heading)*10,
+car.position.y+6,
+car.position.z-Math.cos(heading)*10
+);
+camera.lookAt(car.position.x,car.position.y+1,car.position.z);
+
+document.getElementById('speed').textContent=
+Math.round(Math.abs(speed)*3.6)+' KM/H';
+
+renderer.render(scene,camera);
+}
+animate();
+
+addEventListener('resize',()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
